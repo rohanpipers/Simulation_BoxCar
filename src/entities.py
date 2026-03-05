@@ -20,7 +20,13 @@ class Riders:
 
 
 class Drivers:
-    def __init__(self, arrival_time: float = 0, driver_id: int = 0, location: Tuple[float, float] = (0.0, 0.0)) -> None:
+    def __init__(
+            self, 
+            arrival_time: float = 0, 
+            shift_end_time: float = 0, 
+            driver_id: int = 0, 
+            location: Tuple[float, float] = (0.0, 0.0) ) -> None:
+        
         self.arrival_time = arrival_time
         self.driver_id = driver_id
         self.location: Tuple[float, float]  = location
@@ -28,6 +34,7 @@ class Drivers:
         self.distance_travelled = 0
         self.busy_time = 0
         self.num_trips = 0
+        self.shift_end_time = shift_end_time
     
     def update_location(self, new_location: Tuple[float, float]) -> None:
         self.location = new_location
