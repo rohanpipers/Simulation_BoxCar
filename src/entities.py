@@ -1,5 +1,5 @@
 # import random
-from typing import Tuple, List, Optional, TypeVar, Generic, Any
+from typing import Tuple, Dict, Optional, TypeVar, Generic, Any
 from uuid import uuid4
 import heapq
 from enum import Enum, auto
@@ -8,9 +8,11 @@ from dataclasses import dataclass, field
 class Riders:
     def __init__(
             self, 
+            arrival_time: float = 0,
             origin: Tuple[float, float] = (0.0, 0.0), 
             destination: Tuple[float, float] = (0.0, 0.0), 
             patience_time: float = 0 ) -> None:
+        self.arrival_time  = arrival_time
         self.rider_id      = uuid4()                      # Random UUID to rider
         self.origin        = origin                       # random origin (X0, Y0)
         self.destination   = destination                  # random desitnation (X1, Y1)
@@ -18,7 +20,8 @@ class Riders:
 
 
 class Drivers:
-    def __init__(self, driver_id: int = 0, location: Tuple[float, float] = (0.0, 0.0)) -> None:
+    def __init__(self, arrival_time: float = 0, driver_id: int = 0, location: Tuple[float, float] = (0.0, 0.0)) -> None:
+        self.arrival_time = arrival_time
         self.driver_id = driver_id
         self.location: Tuple[float, float]  = location
         self.earnings  = 0
@@ -36,17 +39,25 @@ class Drivers:
 T = TypeVar('T')
 class Queue(Generic[T]):
     def __init__(self) -> None:
-        self.items: List[T] = []
+        # Using a dictionary to maintain insertion order and allow O(1) lookups
+        self.items: Dict[Any, T] = {}
 
-    def enqueue(self, item: T) -> None:
-        """Adds an item to the back of the queue."""
-        self.items.append(item)
+    def enqueue(self, item_id: Any, item: T) -> None:
+        """Adds an item to the back of the queue using its ID as the key."""
+        self.items[item_id] = item
 
     def dequeue(self) -> Optional[T]:
-        """Removes and returns the item at the front of the queue."""
+        """Removes and returns the item at the front of the queue in O(1) time."""
         if not self.is_empty():
-            return self.items.pop(0)
+            # next(iter()) grabs the very first key that was inserted
+            first_id = next(iter(self.items))
+            return self.items.pop(first_id)
         return None
+
+    def remove_by_id(self, item_id: Any) -> Optional[T]:
+        """Finds and removes an item instantly in O(1) time."""
+        # pop() safely removes the key and returns the value, or returns None if not found
+        return self.items.pop(item_id, None)
 
     def is_empty(self) -> bool:
         """Returns True if the queue is empty."""
@@ -59,7 +70,8 @@ class Queue(Generic[T]):
     def peek(self) -> Optional[T]:
         """Looks at the first item in the queue without removing it."""
         if not self.is_empty():
-            return self.items[0]
+            first_id = next(iter(self.items))
+            return self.items[first_id]
         return None
 
 
@@ -88,7 +100,7 @@ class EventCalendar:
         self._events = []
         self._counter = 0  # Used to generate unique event_ids for tie-breaking
 
-    def schedule(self, time: float, event_type: EventType, data: Any = None) -> None:
+    def add_event(self, time: float, event_type: EventType, data: Any = None) -> None:
         """Schedules a new event on the calendar."""
         self._counter += 1
         new_event = Event(time=time, event_id=self._counter, event_type=event_type, data=data)
