@@ -7,7 +7,7 @@ print("We're in simulation.py")
 
 class Simulation:
     def __init__(self) -> None:
-        self.simulation_length = 0.5
+        self.simulation_length = 100
         self.current_time = 0
         self._counter = 1
         self.avg_speed = 20 # avg speed of cab
@@ -240,12 +240,48 @@ class Simulation:
                 print("moving to next event.....")
                 print("-----------------------------------")
 
+                # Add new rider arrival
+                # Add new driver arrival
+                rider_arrival_time = self.current_time + Distributions.generate_rider_interarival()
+                rider_patience_time = rider_arrival_time + Distributions.generate_rider_patience()
+                new_rider = Rider(arrival_time=rider_arrival_time,
+                                origin=Distributions.generate_location(), 
+                                destination=Distributions.generate_location(), 
+                                patience_time=rider_patience_time)
+
+                # add to rider queue
+                self.rider_queue.enqueue(new_rider.rider_id, new_rider)
+
+                # add to event calendar:
+                # first rider arrival
+                self.event_calendar.add_event(new_rider.arrival_time, event_type=EventType.RIDER_ARRIVAL, data=new_rider)
+                # add abandon times as well
+                self.event_calendar.add_event(new_rider.patience_time, event_type=EventType.RIDER_ABANDONS, data=new_rider)
+
             elif next_event.event_type == EventType.DRIVER_ARRIVAL:
                 print(f"driver arrival: {next_event.data.driver_id}")
                 print("starting matching algo...")
                 self.matching_algo(current_time=next_event.time)
                 print("moving to next event..")
                 print("-----------------------------------")
+                # create 1st driver
+                driver_arrival_time = self.current_time + Distributions.generate_driver_interarival()
+                driver_shift_time   = driver_arrival_time + Distributions.generate_driver_shift_time()
+                new_driver = Driver(driver_id=self._counter,
+                                    arrival_time=driver_arrival_time,
+                                    shift_end_time=driver_shift_time,
+                                    location=Distributions.generate_location())
+                self._counter += 1
+                # add driver to driver queue
+                # self.driver_queue.enqueue(first_driver.driver_id, first_driver)
+                self.driver_queue.enqueue(new_driver.driver_id, new_driver)
+            
+            
+            
+                # first driver arrival
+                self.event_calendar.add_event(new_driver.arrival_time, event_type=EventType.DRIVER_ARRIVAL, data=new_driver)
+                # add driver shift end time
+                self.event_calendar.add_event(new_driver.shift_end_time, event_type=EventType.DRIVER_SHIFT_ENDS, data=new_driver)
 
             elif next_event.event_type == EventType.TRIP_COMPLETION:
                 print(f"Trip completion..")
@@ -292,57 +328,6 @@ class Simulation:
                 print("Something wrong..")
                 print("-----------------------------------")
             
-            # Add new rider arrival
-            # Add new driver arrival
-            rider_arrival_time = self.current_time + Distributions.generate_rider_interarival()
-            rider_patience_time = rider_arrival_time + Distributions.generate_rider_patience()
-            new_rider = Rider(arrival_time=rider_arrival_time,
-                                origin=Distributions.generate_location(), 
-                                destination=Distributions.generate_location(), 
-                                patience_time=rider_patience_time)
-
-            # add to rider queue
-            self.rider_queue.enqueue(new_rider.rider_id, new_rider)
-
-            # create 1st driver
-            driver_arrival_time = self.current_time + Distributions.generate_driver_interarival()
-            driver_shift_time   = driver_arrival_time + Distributions.generate_driver_shift_time()
-            new_driver = Driver(driver_id=self._counter,
-                                arrival_time=driver_arrival_time,
-                                shift_end_time=driver_shift_time,
-                                location=Distributions.generate_location())
-            self._counter += 1
-            # add driver to driver queue
-            # self.driver_queue.enqueue(first_driver.driver_id, first_driver)
-            self.driver_queue.enqueue(new_driver.driver_id, new_driver)
-            
-            # add to event calendar:
-            # first rider arrival
-            self.event_calendar.add_event(new_rider.arrival_time, event_type=EventType.RIDER_ARRIVAL, data=new_rider)
-            # add abandon times as well
-            self.event_calendar.add_event(new_rider.patience_time, event_type=EventType.RIDER_ABANDONS, data=new_rider)
-            
-            # first driver arrival
-            self.event_calendar.add_event(new_driver.arrival_time, event_type=EventType.DRIVER_ARRIVAL, data=new_driver)
-            # add driver shift end time
-            self.event_calendar.add_event(new_driver.shift_end_time, event_type=EventType.DRIVER_SHIFT_ENDS, data=new_driver)
-                
-                
-        
-            # if next_event:
-            #     print(next_event.data)
-            #     event_data = next_event.data
-            #     if isinstance(event_data, Rider):
-            #         print(f"This is a Rider with UUID: {event_data.rider_id}")
-            #         # Call your rider logic here
-                    
-            #     # Check if the data is a Driver object
-            #     elif isinstance(event_data, Driver):
-            #         print(f"This is Driver #{event_data.driver_id}")
-            #         # Call your driver logic here
-                    
-            #     else:
-            #         print("Unknown object type in event data!")
         
         print(self.rider_queue)
         print(self.driver_queue)
