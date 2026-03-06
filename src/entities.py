@@ -1,11 +1,11 @@
 # import random
 from typing import Tuple, Dict, Optional, TypeVar, Generic, Any
-from uuid import uuid4
+from uuid import uuid4, UUID
 import heapq
 from enum import Enum, auto
 from dataclasses import dataclass, field
 
-class Riders:
+class Rider:
     def __init__(
             self, 
             arrival_time: float = 0,
@@ -19,7 +19,7 @@ class Riders:
         self.patience_time = patience_time                # random patience times
 
 
-class Drivers:
+class Driver:
     def __init__(
             self, 
             arrival_time: float = 0, 
@@ -41,6 +41,21 @@ class Drivers:
 
     def update_busy_time(self, busy_time: float) -> None:
         self.busy_time += busy_time
+
+
+
+class Trip:
+    def __init__(self,
+                 driver: Driver,
+                 rider: Rider,
+                 trip_start_time: float,
+                 trip_end_time: float,
+                 trip_distance: float) -> None:
+        self.driver          = driver
+        self.rider           = rider
+        self.trip_start_time = trip_start_time
+        self.trip_end_time   = trip_end_time
+        self.trip_distance   = trip_distance
 
 
 T = TypeVar('T')
@@ -74,7 +89,7 @@ class Queue(Generic[T]):
         """Returns the current number of items in the queue."""
         return len(self.items)
 
-    def peek(self) -> Optional[T]:
+    def top(self) -> Optional[T]:
         """Looks at the first item in the queue without removing it."""
         if not self.is_empty():
             first_id = next(iter(self.items))
@@ -85,7 +100,7 @@ class Queue(Generic[T]):
 # 1. Define the specific events you requested
 class EventType(Enum):
     TERMINATION = auto()
-    TRIP = auto()
+    TRIP_COMPLETION = auto()
     RIDER_ARRIVAL = auto()
     DRIVER_ARRIVAL = auto()
     RIDER_ABANDONS = auto()
