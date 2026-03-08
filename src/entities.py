@@ -55,7 +55,8 @@ class Trip:
         self.driver          = driver
         self.rider           = rider
         self.trip_start_time = trip_start_time
-        self.trip_end_time   = trip_end_time
+        self.pickup_time = pickup_time             
+        self.pickup_distance = pickup_distance 
         self.trip_distance   = trip_distance
 
 
