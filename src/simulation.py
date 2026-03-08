@@ -124,52 +124,52 @@ class Simulation:
         self.driver_queue.remove_by_id(item_id=matched_driver.driver_id)
 
     def print_kpis(self) -> None:
-    total = self.total_rider_requests
-    completed = self.total_completed_rides
-    abandoned = self.total_abandonments
+        total = self.total_rider_requests
+        completed = self.total_completed_rides
+        abandoned = self.total_abandonments
 
-    abandonment_rate = abandoned / total if total > 0 else 0.0
-    avg_pickup_wait = self.total_pickup_wait_time / completed if completed > 0 else 0.0
-    avg_system_time = self.total_system_time / completed if completed > 0 else 0.0
+        abandonment_rate = abandoned / total if total > 0 else 0.0
+        avg_pickup_wait = self.total_pickup_wait_time / completed if completed > 0 else 0.0
+        avg_system_time = self.total_system_time / completed if completed > 0 else 0.0
 
-    earnings_per_hour = []
-    idle_proportions = []
+        earnings_per_hour = []
+        idle_proportions = []
 
-    for driver in self.all_drivers.values():
-        offline_time = driver.actual_offline_time if driver.actual_offline_time is not None else self.current_time
-        online_time = max(0.0, offline_time - driver.arrival_time)
+        for driver in self.all_drivers.values():
+            offline_time = driver.actual_offline_time if driver.actual_offline_time is not None else self.current_time
+            online_time = max(0.0, offline_time - driver.arrival_time)
 
-        if online_time > 0:
-            earnings_per_hour.append(driver.earnings / online_time)
-            idle_proportions.append(max(0.0, online_time - driver.busy_time) / online_time)
+            if online_time > 0:
+                earnings_per_hour.append(driver.earnings / online_time)
+                idle_proportions.append(max(0.0, online_time - driver.busy_time) / online_time)
 
-    avg_driver_earnings_per_hour = (
-        sum(earnings_per_hour) / len(earnings_per_hour)
-        if earnings_per_hour else 0.0
-    )
+        avg_driver_earnings_per_hour = (
+            sum(earnings_per_hour) / len(earnings_per_hour)
+            if earnings_per_hour else 0.0
+        )
 
-    avg_idle_proportion = (
-        sum(idle_proportions) / len(idle_proportions)
-        if idle_proportions else 0.0
-    )
+        avg_idle_proportion = (
+            sum(idle_proportions) / len(idle_proportions)
+            if idle_proportions else 0.0
+        )
 
-    if earnings_per_hour:
-        mean_eph = avg_driver_earnings_per_hour
-        std_eph = (sum((x - mean_eph) ** 2 for x in earnings_per_hour) / len(earnings_per_hour)) ** 0.5
-        fairness_cv = std_eph / mean_eph if mean_eph > 0 else 0.0
-    else:
-        fairness_cv = 0.0
+        if earnings_per_hour:
+            mean_eph = avg_driver_earnings_per_hour
+            std_eph = (sum((x - mean_eph) ** 2 for x in earnings_per_hour) / len(earnings_per_hour)) ** 0.5
+            fairness_cv = std_eph / mean_eph if mean_eph > 0 else 0.0
+        else:
+            fairness_cv = 0.0
 
-    print("===== KPI SUMMARY =====")
-    print(f"Total rider requests: {total}")
-    print(f"Completed rides: {completed}")
-    print(f"Abandonments: {abandoned}")
-    print(f"Abandonment rate: {abandonment_rate:.4f}")
-    print(f"Average pickup wait (hours): {avg_pickup_wait:.4f}")
-    print(f"Average rider system time (hours): {avg_system_time:.4f}")
-    print(f"Average driver earnings per hour: {avg_driver_earnings_per_hour:.4f}")
-    print(f"Fairness (CV of earnings/hour): {fairness_cv:.4f}")
-    print(f"Average driver idle proportion: {avg_idle_proportion:.4f}")
+        print("===== KPI SUMMARY =====")
+        print(f"Total rider requests: {total}")
+        print(f"Completed rides: {completed}")
+        print(f"Abandonments: {abandoned}")
+        print(f"Abandonment rate: {abandonment_rate:.4f}")
+        print(f"Average pickup wait (hours): {avg_pickup_wait:.4f}")
+        print(f"Average rider system time (hours): {avg_system_time:.4f}")
+        print(f"Average driver earnings per hour: {avg_driver_earnings_per_hour:.4f}")
+        print(f"Fairness (CV of earnings/hour): {fairness_cv:.4f}")
+        print(f"Average driver idle proportion: {avg_idle_proportion:.4f}")
 
     def run(self) -> None:
         # print(self.event_calendar.size())
