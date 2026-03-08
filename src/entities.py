@@ -35,6 +35,7 @@ class Driver:
         self.busy_time = 0
         self.num_trips = 0
         self.shift_end_time = shift_end_time
+        self.offline_pending = False
     
     def update_location(self, new_location: Tuple[float, float]) -> None:
         self.location = new_location
@@ -100,7 +101,8 @@ class Queue(Generic[T]):
 # 1. Define the specific events you requested
 class EventType(Enum):
     TERMINATION = auto()
-    TRIP_COMPLETION = auto()
+    DRIVER_REACHES_PICKUP = auto()
+    DRIVER_REACHES_DROPOFF = auto()
     RIDER_ARRIVAL = auto()
     DRIVER_ARRIVAL = auto()
     RIDER_ABANDONS = auto()

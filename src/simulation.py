@@ -27,9 +27,6 @@ class Simulation:
                              destination=Distributions.generate_location(), 
                              patience_time=rider_patience_time)
 
-        # add to rider queue
-        self.rider_queue.enqueue(first_rider.rider_id, first_rider)
-
         # create 1st driver
         driver_arrival_time = self.current_time + Distributions.generate_driver_interarival()
         driver_shift_time   = driver_arrival_time + Distributions.generate_driver_shift_time()
@@ -37,10 +34,6 @@ class Simulation:
                                arrival_time=driver_arrival_time,
                                shift_end_time=driver_shift_time,
                                location=Distributions.generate_location())
-        
-        # add driver to driver queue
-        # self.driver_queue.enqueue(first_driver.driver_id, first_driver)
-        self.driver_queue.enqueue(first_driver.driver_id, first_driver)
 
         # add to event calendar:
         # first rider arrival
@@ -68,52 +61,58 @@ class Simulation:
 
     def matching_algo(self, current_time: float):
         # current_rider = Rider()
-        while not self.driver_queue.is_empty() and not self.rider_queue.is_empty():
-            current_rider = self.rider_queue.dequeue()
-            matched_driver = Driver()
-            min_distance_to_driver = float('inf')
+        if self.driver_queue.is_empty() or self.rider_queue.is_empty():
+            return
+        current_rider = self.rider_queue.dequeue()
+        matched_driver = None
+        min_distance_to_driver = float('inf')
             
-            for current_driver in self.driver_queue.items.values():
-                distance_to_driver = self.calculate_distance(loc1=current_driver.location, loc2=current_rider.origin)
-                if distance_to_driver < min_distance_to_driver:
-                    matched_driver = current_driver
+        for current_driver in self.driver_queue.items.values():
+            distance_to_driver = self.calculate_distance(loc1=current_driver.location, loc2=current_rider.origin)
+            if distance_to_driver < min_distance_to_driver:
+                min_distance_to_driver = distance_to_driver
+                matched_driver = current_driver
             
-            # Matched driver!
-            print(f"Rider {current_rider.rider_id} matched with Driver {matched_driver.driver_id}")
+        if matched_driver is None:
+            # Safety: if something went wrong, put the rider back and stop
+            self.rider_queue.enqueue(current_rider.rider_id, current_rider)
+            return
 
-            # Calculate Trip end times, update distance to be travelled by driver, 
-            distance_driver_to_rider = min_distance_to_driver
-            distance_trip            = self.calculate_distance(loc1=current_rider.origin, loc2=current_rider.destination)
+        # Matched driver!
+        print(f"Rider {current_rider.rider_id} matched with Driver {matched_driver.driver_id}")
 
-            expected_time_driver_to_rider = distance_driver_to_rider/self.avg_speed
-            expected_time_trip = distance_trip/self.avg_speed
+        # Calculate Trip end times, update distance to be travelled by driver, 
+        distance_driver_to_rider = min_distance_to_driver
+        distance_trip            = self.calculate_distance(loc1=current_rider.origin, loc2=current_rider.destination)
 
-            estimated_time_driver_to_rider = Distributions.estimated_trip_time(expected_trip_time=expected_time_driver_to_rider)
-            estimated_time_trip            = Distributions.estimated_trip_time(expected_trip_time=expected_time_trip)
+        expected_time_driver_to_rider = distance_driver_to_rider/self.avg_speed
+        expected_time_trip = distance_trip/self.avg_speed
+
+        estimated_time_driver_to_rider = Distributions.estimated_trip_time(expected_trip_time=expected_time_driver_to_rider)
+        estimated_time_trip            = Distributions.estimated_trip_time(expected_trip_time=expected_time_trip)
             
-            total_trip_time = estimated_time_driver_to_rider + estimated_time_trip
-            estimated_trip_end_time = current_time + total_trip_time
+        total_trip_time = estimated_time_driver_to_rider + estimated_time_trip
+        estimated_trip_end_time = current_time + total_trip_time
 
-            matched_driver.update_busy_time(busy_time=total_trip_time)
-            matched_driver.update_location(new_location=current_rider.destination)
-            # Setup the Trip
-            new_trip = Trip(driver=matched_driver,
-                            rider=current_rider,
-                            trip_start_time=current_time,
-                            trip_end_time=estimated_trip_end_time,
-                            trip_distance=distance_trip)
+        matched_driver.update_busy_time(busy_time=total_trip_time)
+        # Setup the Trip
+        new_trip = Trip(driver=matched_driver,
+                        rider=current_rider,
+                        trip_start_time=current_time,
+                        trip_end_time=estimated_trip_end_time,
+                        trip_distance=distance_trip)
 
-            # add to event calendar
-            self.event_calendar.add_event(time=estimated_trip_end_time, event_type=EventType.TRIP_COMPLETION, data=new_trip)
-            self.driver_queue.remove_by_id(item_id=matched_driver.driver_id)
+        # add to event calendar
+        self.event_calendar.add_event(time=estimated_trip_end_time, event_type=EventType.TRIP_COMPLETION, data=new_trip)
+        self.driver_queue.remove_by_id(item_id=matched_driver.driver_id)
         
-        if self.driver_queue.is_empty() and not self.rider_queue.is_empty():
-            print("Riders remain in queue")
+    if self.driver_queue.is_empty() and not self.rider_queue.is_empty():
+        print("Riders remain in queue")
         
-        elif not self.driver_queue.is_empty() and self.rider_queue.is_empty():
-            print("Drivers remain in queue")
-        else:
-            print("Queues served")
+    elif not self.driver_queue.is_empty() and self.rider_queue.is_empty():
+        print("Drivers remain in queue")
+    else:
+        print("Queues served")
 
 
 
@@ -180,6 +179,8 @@ class Simulation:
                 # Trip completion logic
                 trip_data = next_event.data
                 driver = trip_data.driver
+                rider = trip_data.rider
+                driver.update_location(new_location=rider.destination)
                 # if driver within shift time
                 if driver.shift_end_time > trip_data.trip_end_time:
                     # add back to queue
