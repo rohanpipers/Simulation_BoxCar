@@ -36,6 +36,7 @@ class Driver:
         self.num_trips = 0
         self.shift_end_time = shift_end_time
         self.offline_pending = False
+        self.actual_offline_time = None
     
     def update_location(self, new_location: Tuple[float, float]) -> None:
         self.location = new_location
