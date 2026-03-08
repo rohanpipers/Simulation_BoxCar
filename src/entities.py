@@ -50,14 +50,15 @@ class Trip:
                  driver: Driver,
                  rider: Rider,
                  trip_start_time: float,
-                 trip_end_time: float,
+                 pickup_time: float,
+                 pickup_distance: float,
                  trip_distance: float) -> None:
-        self.driver          = driver
-        self.rider           = rider
+        self.driver = driver
+        self.rider = rider
         self.trip_start_time = trip_start_time
-        self.pickup_time = pickup_time             
-        self.pickup_distance = pickup_distance 
-        self.trip_distance   = trip_distance
+        self.pickup_time = pickup_time
+        self.pickup_distance = pickup_distance
+        self.trip_distance = trip_distance
 
 
 T = TypeVar('T')

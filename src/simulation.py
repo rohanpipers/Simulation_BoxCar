@@ -210,6 +210,10 @@ class Simulation:
                 # driver has now actually arrived at destination
                 driver.update_location(new_location=rider.destination)
 
+                # update driver trip stats
+                driver.distance_travelled += (trip_data.pickup_distance + trip_data.trip_distance)
+                driver.num_trips += 1
+
                 # earnings/costs
                 fare = 3 + 2 * trip_data.trip_distance
                 petrol_cost = 0.20 * (trip_data.pickup_distance + trip_data.trip_distance)
@@ -230,7 +234,7 @@ class Simulation:
                 if remove:
                     print(f"Rider abandoned: {next_event.data.rider_id}")
                 else:
-                    print(f"Rider {next_event.data.rider_id} already served!")
+                    print(f"Rider {next_event.data.rider_id} already matched or completed")
 
                 print("-----------------------------------")
             
