@@ -6,8 +6,9 @@ import math
 print("We're in simulation.py")
 
 class Simulation:
-    def __init__(self) -> None:
-        self.simulation_length = 100
+    def __init__(self, simulation_length: float = 1000, verbose: bool = False) -> None:
+        self.simulation_length = simulation_length
+        self.verbose = verbose
         self.current_time = 0
         self._counter = 1
         self.avg_speed = 20 # avg speed of cab
@@ -59,6 +60,10 @@ class Simulation:
 
         self._counter += 1
     
+    def log(self, msg: str) -> None:
+        if self.verbose:
+            print(msg)
+
     # def matching_algo(self):
     # while rider queue or driver queue is empty
     # keep running matching pattern algo
@@ -90,7 +95,7 @@ class Simulation:
             return
 
         # Matched driver!
-        print(f"Rider {current_rider.rider_id} matched with Driver {matched_driver.driver_id}")
+        self.log(f"Rider {current_rider.rider_id} matched with Driver {matched_driver.driver_id}")
 
         # Calculate Trip end times, update distance to be travelled by driver, 
         pickup_distance = min_distance_to_driver
@@ -123,7 +128,7 @@ class Simulation:
 
         self.driver_queue.remove_by_id(item_id=matched_driver.driver_id)
 
-    def print_kpis(self) -> None:
+    def get_kpis(self) -> dict:
         total = self.total_rider_requests
         completed = self.total_completed_rides
         abandoned = self.total_abandonments
@@ -160,16 +165,31 @@ class Simulation:
         else:
             fairness_cv = 0.0
 
+        return {
+            "total_rider_requests": total,
+            "completed_rides": completed,
+            "abandonments": abandoned,
+            "abandonment_rate": abandonment_rate,
+            "avg_pickup_wait_hours": avg_pickup_wait,
+            "avg_system_time_hours": avg_system_time,
+            "avg_driver_earnings_per_hour": avg_driver_earnings_per_hour,
+            "fairness_cv": fairness_cv,
+            "avg_driver_idle_proportion": avg_idle_proportion,
+        }
+
+    def print_kpis(self) -> None:
+        kpis = self.get_kpis()
+
         print("===== KPI SUMMARY =====")
-        print(f"Total rider requests: {total}")
-        print(f"Completed rides: {completed}")
-        print(f"Abandonments: {abandoned}")
-        print(f"Abandonment rate: {abandonment_rate:.4f}")
-        print(f"Average pickup wait (hours): {avg_pickup_wait:.4f}")
-        print(f"Average rider system time (hours): {avg_system_time:.4f}")
-        print(f"Average driver earnings per hour: {avg_driver_earnings_per_hour:.4f}")
-        print(f"Fairness (CV of earnings/hour): {fairness_cv:.4f}")
-        print(f"Average driver idle proportion: {avg_idle_proportion:.4f}")
+        print(f"Total rider requests: {kpis['total_rider_requests']}")
+        print(f"Completed rides: {kpis['completed_rides']}")
+        print(f"Abandonments: {kpis['abandonments']}")
+        print(f"Abandonment rate: {kpis['abandonment_rate']:.4f}")
+        print(f"Average pickup wait (hours): {kpis['avg_pickup_wait_hours']:.4f}")
+        print(f"Average rider system time (hours): {kpis['avg_system_time_hours']:.4f}")
+        print(f"Average driver earnings per hour: {kpis['avg_driver_earnings_per_hour']:.4f}")
+        print(f"Fairness (CV of earnings/hour): {kpis['fairness_cv']:.4f}")
+        print(f"Average driver idle proportion: {kpis['avg_driver_idle_proportion']:.4f}")
 
     def run(self) -> None:
         # print(self.event_calendar.size())
@@ -184,14 +204,14 @@ class Simulation:
             if next_event.event_type == EventType.RIDER_ARRIVAL:
                 # Start matching algo
                 # matching algo until rider queue or driver queue is empty
-                print(f"Rider arrival: {next_event.data.rider_id}")
+                self.log(f"Rider arrival: {next_event.data.rider_id}")
                 self.total_rider_requests += 1
                 # add to rider queue
                 self.rider_queue.enqueue(next_event.data.rider_id, next_event.data)
-                print("start matching algo...")
+                self.log("start matching algo...")
                 self.matching_algo(current_time=next_event.time)
-                print("moving to next event.....")
-                print("-----------------------------------")
+                self.log("moving to next event.....")
+                self.log("-----------------------------------")
 
                 # Add new rider arrival
                 # Add new driver arrival
@@ -209,13 +229,13 @@ class Simulation:
                 self.event_calendar.add_event(new_rider.patience_time, event_type=EventType.RIDER_ABANDONS, data=new_rider)
 
             elif next_event.event_type == EventType.DRIVER_ARRIVAL:
-                print(f"driver arrival: {next_event.data.driver_id}")
+                self.log(f"driver arrival: {next_event.data.driver_id}")
                 # add driver to driver queue
                 self.driver_queue.enqueue(next_event.data.driver_id, next_event.data)
-                print("starting matching algo...")
+                self.log("starting matching algo...")
                 self.matching_algo(current_time=next_event.time)
-                print("moving to next event..")
-                print("-----------------------------------")
+                self.log("moving to next event..")
+                self.log("-----------------------------------")
                 # create 1st driver
                 driver_arrival_time = self.current_time + Distributions.generate_driver_interarival()
                 driver_shift_time   = driver_arrival_time + Distributions.generate_driver_shift_time()
@@ -232,7 +252,7 @@ class Simulation:
                 self.event_calendar.add_event(new_driver.shift_end_time, event_type=EventType.DRIVER_SHIFT_ENDS, data=new_driver)
 
             elif next_event.event_type == EventType.DRIVER_REACHES_PICKUP:
-                print("Driver reaches pickup..")
+                self.log("Driver reaches pickup..")
                 trip_data = next_event.data
                 driver = trip_data.driver
                 rider = trip_data.rider
@@ -260,10 +280,10 @@ class Simulation:
                     data=trip_data
                 )
 
-                print("-----------------------------------")
+                self.log("-----------------------------------")
 
             elif next_event.event_type == EventType.DRIVER_REACHES_DROPOFF:
-                print("Driver reaches dropoff..")
+                self.log("Driver reaches dropoff..")
                 trip_data = next_event.data
                 driver = trip_data.driver
                 rider = trip_data.rider
@@ -286,47 +306,47 @@ class Simulation:
                 # decide what happens to driver next
                 if driver.offline_pending or self.current_time >= driver.shift_end_time:
                     driver.actual_offline_time = self.current_time
-                    print(f"Driver {driver.driver_id} goes offline after trip")
+                    self.log(f"Driver {driver.driver_id} goes offline after trip")
                 else:
                     self.driver_queue.enqueue(driver.driver_id, driver)
                     self.matching_algo(current_time=self.current_time)
 
-                print("-----------------------------------")
+                self.log("-----------------------------------")
             
             elif next_event.event_type == EventType.RIDER_ABANDONS:
                 # remove rider from queue if available
                 remove = self.rider_queue.remove_by_id(next_event.data.rider_id)
                 if remove:
                     self.total_abandonments += 1
-                    print(f"Rider abandoned: {next_event.data.rider_id}")
+                    self.log(f"Rider abandoned: {next_event.data.rider_id}")
                 else:
-                    print(f"Rider {next_event.data.rider_id} already matched or completed")
+                    self.log(f"Rider {next_event.data.rider_id} already matched or completed")
 
-                print("-----------------------------------")
+                self.log("-----------------------------------")
             
             elif next_event.event_type == EventType.DRIVER_SHIFT_ENDS:
-                print("Driver shift ends..")
+                self.log("Driver shift ends..")
                 driver = next_event.data
 
                 if driver.driver_id in self.driver_queue.items:
                     self.driver_queue.remove_by_id(driver.driver_id)
                     driver.actual_offline_time = self.current_time
-                    print(f"Driver {driver.driver_id} leaves immediately")
+                    self.log(f"Driver {driver.driver_id} leaves immediately")
                 else:
                     driver.offline_pending = True
-                    print(f"Driver {driver.driver_id} will leave after current trip")
+                    self.log(f"Driver {driver.driver_id} will leave after current trip")
 
-                print("-----------------------------------")
+                self.log("-----------------------------------")
             
             elif next_event.event_type == EventType.TERMINATION:
-                print("Simulation Termination")
-                print("-----------------------------------")
-                self.print_kpis()
+                if self.verbose:
+                    self.log("Simulation Termination")
+                    self.log("-----------------------------------")
                 return
             
             else:
-                print("Something wrong..")
-                print("-----------------------------------")
+                self.log("Something wrong..")
+                self.log("-----------------------------------")
             
         
         print(self.rider_queue)
