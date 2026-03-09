@@ -4,15 +4,25 @@ from distributions import Distributions
 import math
 
 class Simulation:
-    def __init__(self) -> None:
-        self.simulation_length = 10                 # Time length of Simulation
-        self.current_time      = 0                  # Start time of simulation t = 0
-        self._counter          = 1                  # Counter to generate driver ids
-        self.avg_speed         = 20                 # avg speed of cab
+    def __init__(self, simulation_length: float = 1000, verbose: bool = False) -> None:
+        self.simulation_length = simulation_length
+        self.verbose = verbose
+        self.current_time = 0
+        self._counter = 1
+        self.avg_speed = 20 # avg speed of cab
         
         self.event_calendar  = EventCalendar()      # instatiate event calendar
         self.rider_queue     = Queue[Rider]()       # instantiate rider queue
         self.driver_queue    = Queue[Driver]()      # instantiate driver queue
+
+        self.total_rider_requests = 0
+        self.total_completed_rides = 0
+        self.total_abandonments = 0
+
+        self.total_pickup_wait_time = 0.0
+        self.total_system_time = 0.0
+
+        self.all_drivers = {}
 
         # add termination to event calendar
         self.event_calendar.add_event(self.simulation_length, event_type=EventType.TERMINATION)
@@ -25,9 +35,6 @@ class Simulation:
                              destination=Distributions.generate_location(), 
                              patience_time=rider_patience_time)
 
-        # add to rider queue
-        self.rider_queue.enqueue(first_rider.rider_id, first_rider)
-
         # create 1st driver
         driver_arrival_time = self.current_time + Distributions.generate_driver_interarival()
         driver_shift_time   = driver_arrival_time + Distributions.generate_driver_shift_time()
@@ -36,9 +43,7 @@ class Simulation:
                                shift_end_time=driver_shift_time,
                                location=Distributions.generate_location())
         
-        # add driver to driver queue
-        # self.driver_queue.enqueue(first_driver.driver_id, first_driver)
-        self.driver_queue.enqueue(first_driver.driver_id, first_driver)
+        self.all_drivers[first_driver.driver_id] = first_driver
 
         # add to event calendar:
         # first rider arrival
@@ -53,6 +58,10 @@ class Simulation:
 
         self._counter += 1
     
+    def log(self, msg: str) -> None:
+        if self.verbose:
+            print(msg)
+
     # def matching_algo(self):
     # while rider queue or driver queue is empty
     # keep running matching pattern algo
@@ -66,54 +75,119 @@ class Simulation:
 
     def matching_algo(self, current_time: float):
         # current_rider = Rider()
-        while not self.driver_queue.is_empty() and not self.rider_queue.is_empty():
-            current_rider = self.rider_queue.dequeue()
-            matched_driver = Driver()
-            min_distance_to_driver = float('inf')
+        if self.driver_queue.is_empty() or self.rider_queue.is_empty():
+            return
+        current_rider = self.rider_queue.dequeue()
+        matched_driver = None
+        min_distance_to_driver = float('inf')
             
-            for current_driver in self.driver_queue.items.values():
-                distance_to_driver = self.calculate_distance(loc1=current_driver.location, loc2=current_rider.origin)
-                if distance_to_driver < min_distance_to_driver:
-                    matched_driver = current_driver
+        for current_driver in self.driver_queue.items.values():
+            distance_to_driver = self.calculate_distance(loc1=current_driver.location, loc2=current_rider.origin)
+            if distance_to_driver < min_distance_to_driver:
+                min_distance_to_driver = distance_to_driver
+                matched_driver = current_driver
             
-            # Matched driver!
-            print(f"Rider {current_rider.rider_id} matched with Driver {matched_driver.driver_id}")
+        if matched_driver is None:
+            # Safety: if something went wrong, put the rider back and stop
+            self.rider_queue.enqueue(current_rider.rider_id, current_rider)
+            return
 
-            # Calculate Trip end times, update distance to be travelled by driver, 
-            distance_driver_to_rider = min_distance_to_driver
-            distance_trip            = self.calculate_distance(loc1=current_rider.origin, loc2=current_rider.destination)
+        # Matched driver!
+        self.log(f"Rider {current_rider.rider_id} matched with Driver {matched_driver.driver_id}")
 
-            expected_time_driver_to_rider = distance_driver_to_rider/self.avg_speed
-            expected_time_trip = distance_trip/self.avg_speed
+        # Calculate Trip end times, update distance to be travelled by driver, 
+        pickup_distance = min_distance_to_driver
+        trip_distance = self.calculate_distance(
+            loc1=current_rider.origin,
+            loc2=current_rider.destination
+        )
 
-            estimated_time_driver_to_rider = Distributions.estimated_trip_time(expected_trip_time=expected_time_driver_to_rider)
-            estimated_time_trip            = Distributions.estimated_trip_time(expected_trip_time=expected_time_trip)
-            
-            total_trip_time = estimated_time_driver_to_rider + estimated_time_trip
-            estimated_trip_end_time = current_time + total_trip_time
+        expected_time_driver_to_rider = pickup_distance / self.avg_speed
+        estimated_time_driver_to_rider = Distributions.estimated_trip_time(
+            expected_trip_time=expected_time_driver_to_rider
+        )
 
-            matched_driver.update_busy_time(busy_time=total_trip_time)
-            matched_driver.update_location(new_location=current_rider.destination)
-            # Setup the Trip
-            new_trip = Trip(driver=matched_driver,
-                            rider=current_rider,
-                            trip_start_time=current_time,
-                            trip_end_time=estimated_trip_end_time,
-                            trip_distance=distance_trip)
+        pickup_time = current_time + estimated_time_driver_to_rider
 
-            # add to event calendar
-            self.event_calendar.add_event(time=estimated_trip_end_time, event_type=EventType.TRIP_COMPLETION, data=new_trip)
-            self.driver_queue.remove_by_id(item_id=matched_driver.driver_id)
-        
-        if self.driver_queue.is_empty() and not self.rider_queue.is_empty():
-            print("Riders remain in queue")
-        
-        elif not self.driver_queue.is_empty() and self.rider_queue.is_empty():
-            print("Drivers remain in queue")
+        new_trip = Trip(
+            driver=matched_driver,
+            rider=current_rider,
+            trip_start_time=current_time,
+            pickup_time=pickup_time,
+            pickup_distance=pickup_distance,
+            trip_distance=trip_distance
+        )
+
+        self.event_calendar.add_event(
+            time=pickup_time,
+            event_type=EventType.DRIVER_REACHES_PICKUP,
+            data=new_trip
+        )
+
+        self.driver_queue.remove_by_id(item_id=matched_driver.driver_id)
+
+    def get_kpis(self) -> dict:
+        total = self.total_rider_requests
+        completed = self.total_completed_rides
+        abandoned = self.total_abandonments
+
+        abandonment_rate = abandoned / total if total > 0 else 0.0
+        avg_pickup_wait = self.total_pickup_wait_time / completed if completed > 0 else 0.0
+        avg_system_time = self.total_system_time / completed if completed > 0 else 0.0
+
+        earnings_per_hour = []
+        idle_proportions = []
+
+        for driver in self.all_drivers.values():
+            offline_time = driver.actual_offline_time if driver.actual_offline_time is not None else self.current_time
+            online_time = max(0.0, offline_time - driver.arrival_time)
+
+            if online_time > 0:
+                earnings_per_hour.append(driver.earnings / online_time)
+                idle_proportions.append(max(0.0, online_time - driver.busy_time) / online_time)
+
+        avg_driver_earnings_per_hour = (
+            sum(earnings_per_hour) / len(earnings_per_hour)
+            if earnings_per_hour else 0.0
+        )
+
+        avg_idle_proportion = (
+            sum(idle_proportions) / len(idle_proportions)
+            if idle_proportions else 0.0
+        )
+
+        if earnings_per_hour:
+            mean_eph = avg_driver_earnings_per_hour
+            std_eph = (sum((x - mean_eph) ** 2 for x in earnings_per_hour) / len(earnings_per_hour)) ** 0.5
+            fairness_cv = std_eph / mean_eph if mean_eph > 0 else 0.0
         else:
-            print("Queues served")
+            fairness_cv = 0.0
 
+        return {
+            "total_rider_requests": total,
+            "completed_rides": completed,
+            "abandonments": abandoned,
+            "abandonment_rate": abandonment_rate,
+            "avg_pickup_wait_hours": avg_pickup_wait,
+            "avg_system_time_hours": avg_system_time,
+            "avg_driver_earnings_per_hour": avg_driver_earnings_per_hour,
+            "fairness_cv": fairness_cv,
+            "avg_driver_idle_proportion": avg_idle_proportion,
+        }
 
+    def print_kpis(self) -> None:
+        kpis = self.get_kpis()
+
+        print("===== KPI SUMMARY =====")
+        print(f"Total rider requests: {kpis['total_rider_requests']}")
+        print(f"Completed rides: {kpis['completed_rides']}")
+        print(f"Abandonments: {kpis['abandonments']}")
+        print(f"Abandonment rate: {kpis['abandonment_rate']:.4f}")
+        print(f"Average pickup wait (hours): {kpis['avg_pickup_wait_hours']:.4f}")
+        print(f"Average rider system time (hours): {kpis['avg_system_time_hours']:.4f}")
+        print(f"Average driver earnings per hour: {kpis['avg_driver_earnings_per_hour']:.4f}")
+        print(f"Fairness (CV of earnings/hour): {kpis['fairness_cv']:.4f}")
+        print(f"Average driver idle proportion: {kpis['avg_driver_idle_proportion']:.4f}")
 
     def run(self) -> None:
         # print(self.event_calendar.size())
@@ -128,13 +202,14 @@ class Simulation:
             if next_event.event_type == EventType.RIDER_ARRIVAL:
                 # Start matching algo
                 # matching algo until rider queue or driver queue is empty
-                print(f"Rider arrival: {next_event.data.rider_id}")
+                self.log(f"Rider arrival: {next_event.data.rider_id}")
+                self.total_rider_requests += 1
                 # add to rider queue
                 self.rider_queue.enqueue(next_event.data.rider_id, next_event.data)
-                print("start matching algo...")
+                self.log("start matching algo...")
                 self.matching_algo(current_time=next_event.time)
-                print("moving to next event.....")
-                print("-----------------------------------")
+                self.log("moving to next event.....")
+                self.log("-----------------------------------")
 
                 # Add new rider arrival
                 # Add new driver arrival
@@ -152,13 +227,13 @@ class Simulation:
                 self.event_calendar.add_event(new_rider.patience_time, event_type=EventType.RIDER_ABANDONS, data=new_rider)
 
             elif next_event.event_type == EventType.DRIVER_ARRIVAL:
-                print(f"driver arrival: {next_event.data.driver_id}")
+                self.log(f"driver arrival: {next_event.data.driver_id}")
                 # add driver to driver queue
                 self.driver_queue.enqueue(next_event.data.driver_id, next_event.data)
-                print("starting matching algo...")
+                self.log("starting matching algo...")
                 self.matching_algo(current_time=next_event.time)
-                print("moving to next event..")
-                print("-----------------------------------")
+                self.log("moving to next event..")
+                self.log("-----------------------------------")
                 # create 1st driver
                 driver_arrival_time = self.current_time + Distributions.generate_driver_interarival()
                 driver_shift_time   = driver_arrival_time + Distributions.generate_driver_shift_time()
@@ -166,6 +241,7 @@ class Simulation:
                                     arrival_time=driver_arrival_time,
                                     shift_end_time=driver_shift_time,
                                     location=Distributions.generate_location())
+                self.all_drivers[new_driver.driver_id] = new_driver
                 self._counter += 1 # to assign id to next driver
 
                 # first driver arrival
@@ -173,50 +249,102 @@ class Simulation:
                 # add driver shift end time
                 self.event_calendar.add_event(new_driver.shift_end_time, event_type=EventType.DRIVER_SHIFT_ENDS, data=new_driver)
 
-            elif next_event.event_type == EventType.TRIP_COMPLETION:
-                print(f"Trip completion..")
-                # Trip completion logic
+            elif next_event.event_type == EventType.DRIVER_REACHES_PICKUP:
+                self.log("Driver reaches pickup..")
                 trip_data = next_event.data
                 driver = trip_data.driver
-                # if driver within shift time
-                if driver.shift_end_time > trip_data.trip_end_time:
-                    # add back to queue
+                rider = trip_data.rider
+
+                # driver has now actually reached the rider
+                driver.update_location(new_location=rider.origin)
+
+                self.total_pickup_wait_time += (self.current_time - rider.arrival_time)
+
+                # compute rider leg travel time
+                expected_time_trip = trip_data.trip_distance / self.avg_speed
+                estimated_time_trip = Distributions.estimated_trip_time(
+                    expected_trip_time=expected_time_trip
+                )
+
+                dropoff_time = self.current_time + estimated_time_trip
+
+                # store total busy time now that both legs are known
+                total_trip_time = (trip_data.pickup_time - trip_data.trip_start_time) + estimated_time_trip
+                driver.update_busy_time(busy_time=total_trip_time)
+
+                self.event_calendar.add_event(
+                    time=dropoff_time,
+                    event_type=EventType.DRIVER_REACHES_DROPOFF,
+                    data=trip_data
+                )
+
+                self.log("-----------------------------------")
+
+            elif next_event.event_type == EventType.DRIVER_REACHES_DROPOFF:
+                self.log("Driver reaches dropoff..")
+                trip_data = next_event.data
+                driver = trip_data.driver
+                rider = trip_data.rider
+
+                # driver has now actually arrived at destination
+                driver.update_location(new_location=rider.destination)
+
+                self.total_completed_rides += 1
+                self.total_system_time += (self.current_time - rider.arrival_time)
+
+                # update driver trip stats
+                driver.distance_travelled += (trip_data.pickup_distance + trip_data.trip_distance)
+                driver.num_trips += 1
+
+                # earnings/costs
+                fare = 3 + 2 * trip_data.trip_distance
+                petrol_cost = 0.20 * (trip_data.pickup_distance + trip_data.trip_distance)
+                driver.earnings += (fare - petrol_cost)
+
+                # decide what happens to driver next
+                if driver.offline_pending or self.current_time >= driver.shift_end_time:
+                    driver.actual_offline_time = self.current_time
+                    self.log(f"Driver {driver.driver_id} goes offline after trip")
+                else:
                     self.driver_queue.enqueue(driver.driver_id, driver)
-                    # driver.update_location(new_location=)
-                # else:
-                    # remove driver from system
-                    # self.driver_queue.remove_by_id
-                    
-                print("-----------------------------------")
+                    self.matching_algo(current_time=self.current_time)
+
+                self.log("-----------------------------------")
             
             elif next_event.event_type == EventType.RIDER_ABANDONS:
                 # remove rider from queue if available
                 remove = self.rider_queue.remove_by_id(next_event.data.rider_id)
                 if remove:
-                    print(f"Rider abandoned: {next_event.data.rider_id}")
+                    self.total_abandonments += 1
+                    self.log(f"Rider abandoned: {next_event.data.rider_id}")
                 else:
-                    print(f"Rider {next_event.data.rider_id} already served!")
+                    self.log(f"Rider {next_event.data.rider_id} already matched or completed")
 
-                print("-----------------------------------")
+                self.log("-----------------------------------")
             
             elif next_event.event_type == EventType.DRIVER_SHIFT_ENDS:
-                print(f"Driver shift end: {next_event.data.driver_id}")
-                print("removing driver from queue...")
-                remove = self.driver_queue.remove_by_id(next_event.data.driver_id)
-                if remove:
-                    print(f"Driver shift abandoning..")
+                self.log("Driver shift ends..")
+                driver = next_event.data
+
+                if driver.driver_id in self.driver_queue.items:
+                    self.driver_queue.remove_by_id(driver.driver_id)
+                    driver.actual_offline_time = self.current_time
+                    self.log(f"Driver {driver.driver_id} leaves immediately")
                 else:
-                    print(f"Driver already out of system!")
-                print("-----------------------------------")
+                    driver.offline_pending = True
+                    self.log(f"Driver {driver.driver_id} will leave after current trip")
+
+                self.log("-----------------------------------")
             
             elif next_event.event_type == EventType.TERMINATION:
-                print("Simulation Termination")
-                print("-----------------------------------")
+                if self.verbose:
+                    self.log("Simulation Termination")
+                    self.log("-----------------------------------")
                 return
             
             else:
-                print("Something wrong..")
-                print("-----------------------------------")
+                self.log("Something wrong..")
+                self.log("-----------------------------------")
             
         
         print(self.rider_queue)

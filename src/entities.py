@@ -35,6 +35,8 @@ class Driver:
         self.busy_time = 0
         self.num_trips = 0
         self.shift_end_time = shift_end_time
+        self.offline_pending = False
+        self.actual_offline_time = None
     
     def update_location(self, new_location: Tuple[float, float]) -> None:
         self.location = new_location
@@ -49,13 +51,15 @@ class Trip:
                  driver: Driver,
                  rider: Rider,
                  trip_start_time: float,
-                 trip_end_time: float,
+                 pickup_time: float,
+                 pickup_distance: float,
                  trip_distance: float) -> None:
-        self.driver          = driver
-        self.rider           = rider
+        self.driver = driver
+        self.rider = rider
         self.trip_start_time = trip_start_time
-        self.trip_end_time   = trip_end_time
-        self.trip_distance   = trip_distance
+        self.pickup_time = pickup_time
+        self.pickup_distance = pickup_distance
+        self.trip_distance = trip_distance
 
 
 T = TypeVar('T')
@@ -99,14 +103,15 @@ class Queue(Generic[T]):
 
 # Events changing state of system
 class EventType(Enum):
-    TERMINATION       = auto()      # Termination of simulation
-    TRIP_COMPLETION   = auto()      # Completion of trip
-    RIDER_ARRIVAL     = auto()      # Rider arrival
-    DRIVER_ARRIVAL    = auto()      # Driver arrival
-    RIDER_ABANDONS    = auto()      # Rider abandons queue
-    DRIVER_SHIFT_ENDS = auto()      # Offline time for driver
+    TERMINATION = auto()
+    DRIVER_REACHES_PICKUP = auto()
+    DRIVER_REACHES_DROPOFF = auto()
+    RIDER_ARRIVAL = auto()
+    DRIVER_ARRIVAL = auto()
+    RIDER_ABANDONS = auto()
+    DRIVER_SHIFT_ENDS = auto()
 
-
+# 2. Define the Event object
 @dataclass(order=True)
 class Event:
     time: float
