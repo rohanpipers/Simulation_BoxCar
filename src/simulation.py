@@ -3,8 +3,6 @@ from typing import Tuple
 from distributions import Distributions
 import math
 
-print("We're in simulation.py")
-
 class Simulation:
     def __init__(self, simulation_length: float = 1000, verbose: bool = False) -> None:
         self.simulation_length = simulation_length
@@ -13,9 +11,9 @@ class Simulation:
         self._counter = 1
         self.avg_speed = 20 # avg speed of cab
         
-        self.event_calendar  = EventCalendar()
-        self.rider_queue     = Queue[Rider]()
-        self.driver_queue    = Queue[Driver]()
+        self.event_calendar  = EventCalendar()      # instatiate event calendar
+        self.rider_queue     = Queue[Rider]()       # instantiate rider queue
+        self.driver_queue    = Queue[Driver]()      # instantiate driver queue
 
         self.total_rider_requests = 0
         self.total_completed_rides = 0

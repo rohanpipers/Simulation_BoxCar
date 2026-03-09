@@ -101,7 +101,7 @@ class Queue(Generic[T]):
         return None
 
 
-# 1. Define the specific events you requested
+# Events changing state of system
 class EventType(Enum):
     TERMINATION = auto()
     DRIVER_REACHES_PICKUP = auto()
@@ -119,7 +119,7 @@ class Event:
     # The 'event_id' is used as a tie-breaker if two events happen at the exact same time.
     event_id: int 
     event_type: EventType = field(compare=False)
-    data: Any = field(default=None, compare=False)
+    data: Any             = field(default=None, compare=False)
 
 # 3. Define the Event Calendar
 class EventCalendar:
