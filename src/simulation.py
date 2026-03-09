@@ -3,18 +3,16 @@ from typing import Tuple
 from distributions import Distributions
 import math
 
-print("We're in simulation.py")
-
 class Simulation:
     def __init__(self) -> None:
-        self.simulation_length = 10
-        self.current_time = 0
-        self._counter = 1
-        self.avg_speed = 20 # avg speed of cab
+        self.simulation_length = 10                 # Time length of Simulation
+        self.current_time      = 0                  # Start time of simulation t = 0
+        self._counter          = 1                  # Counter to generate driver ids
+        self.avg_speed         = 20                 # avg speed of cab
         
-        self.event_calendar  = EventCalendar()
-        self.rider_queue     = Queue[Rider]()
-        self.driver_queue    = Queue[Driver]()
+        self.event_calendar  = EventCalendar()      # instatiate event calendar
+        self.rider_queue     = Queue[Rider]()       # instantiate rider queue
+        self.driver_queue    = Queue[Driver]()      # instantiate driver queue
 
         # add termination to event calendar
         self.event_calendar.add_event(self.simulation_length, event_type=EventType.TERMINATION)

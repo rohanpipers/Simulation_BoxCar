@@ -97,16 +97,16 @@ class Queue(Generic[T]):
         return None
 
 
-# 1. Define the specific events you requested
+# Events changing state of system
 class EventType(Enum):
-    TERMINATION = auto()
-    TRIP_COMPLETION = auto()
-    RIDER_ARRIVAL = auto()
-    DRIVER_ARRIVAL = auto()
-    RIDER_ABANDONS = auto()
-    DRIVER_SHIFT_ENDS = auto()
+    TERMINATION       = auto()      # Termination of simulation
+    TRIP_COMPLETION   = auto()      # Completion of trip
+    RIDER_ARRIVAL     = auto()      # Rider arrival
+    DRIVER_ARRIVAL    = auto()      # Driver arrival
+    RIDER_ABANDONS    = auto()      # Rider abandons queue
+    DRIVER_SHIFT_ENDS = auto()      # Offline time for driver
 
-# 2. Define the Event object
+
 @dataclass(order=True)
 class Event:
     time: float
@@ -114,7 +114,7 @@ class Event:
     # The 'event_id' is used as a tie-breaker if two events happen at the exact same time.
     event_id: int 
     event_type: EventType = field(compare=False)
-    data: Any = field(default=None, compare=False)
+    data: Any             = field(default=None, compare=False)
 
 # 3. Define the Event Calendar
 class EventCalendar:
