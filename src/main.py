@@ -5,7 +5,7 @@ from simulation import Simulation
 
 def main():
     n_replications = 30
-    run_length = 1000
+    run_length     = 1000
 
     results = []
 
